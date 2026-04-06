@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访问统计 - 三晋医路通</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .header h1 {
+            color: #1a5f7a;
+            margin-bottom: 10px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-number {
+            font-size: 48px;
+            font-weight: bold;
+            color: #1a5f7a;
+            margin: 15px 0;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+        .section {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a5f7a;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background: #f5f7fa;
+            font-weight: 600;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .refresh-btn {
+            background: linear-gradient(135deg, #1a5f7a 0%, #2c8c5e 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .refresh-btn:hover {
+            opacity: 0.9;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #e8f5e9;
+            color: #2c8c5e;
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📊 三晋医路通 - 访问统计面板</h1>
+        <p>实时查看HTML页面的访问人数和用户行为</p>
+        <div class="status-badge" id="statusBadge">后端连接中...</div>
+    </div>
+    
+    <button class="refresh-btn" onclick="loadAllData()">🔄 刷新数据</button>
+    
+    <div class="stats-grid" id="statsGrid">
+        <div class="loading">加载中...</div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">👥 独立访客列表</div>
+        <div style="overflow-x: auto;">
+            <table id="visitorsTable">
+                <thead>
+                    <tr>
+                        <th>设备ID</th>
+                        <th>首次访问</th>
+                        <th>最后访问</th>
+                        <th>访问次数</th>
+                        <th>IP地址</th>
+                    </tr>
+                </thead>
+                <tbody id="visitorsTableBody">
+                    <tr><td colspan="5" class="loading">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">📝 最近访问记录</div>
+        <div style="overflow-x: auto;">
+            <table id="recentTable">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>设备ID</th>
+                        <th>IP地址</th>
+                        <th>页面</th>
+                    </tr>
+                </thead>
+                <tbody id="recentTableBody">
+                    <tr><td colspan="4" class="loading">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>数据实时更新 | 后端服务运行在端口3001</p>
+    </div>
+</div>
+
+<script>
+const API_URL = 'http://a2984916698.gnway.cc:10639';
+
+async function loadAllData() {
+    await loadStats();
+    await loadVisitors();
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_URL}/api/stats`);
+        const data = await response.json();
+        
+        document.getElementById('statusBadge').innerHTML = '✅ 后端连接正常';
+        document.getElementById('statusBadge').style.background = '#e8f5e9';
+        
+        if (data.success) {
+            const stats = data.stats;
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <div>📈 总访问次数</div>
+                    <div class="stat-number">${stats.totalVisits}</div>
+                </div>
+                <div class="stat-card">
+                    <div>👤 独立访客数</div>
+                    <div class="stat-number">${stats.uniqueVisitors}</div>
+                </div>
+                <div class="stat-card">
+                    <div>📅 今日访问</div>
+                    <div class="stat-number">${stats.todayVisits}</div>
+                </div>
+                <div class="stat-card">
+                    <div>🆕 今日新访客</div>
+                    <div class="stat-number">${stats.todayUnique}</div>
+                </div>
+                <div class="stat-card">
+                    <div>📊 本周访问</div>
+                    <div class="stat-number">${stats.weekVisits}</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载统计失败:', error);
+        document.getElementById('statusBadge').innerHTML = '❌ 后端连接失败';
+        document.getElementById('statusBadge').style.background = '#ffebee';
+        document.getElementById('statsGrid').innerHTML = `
+            <div class="stat-card">
+                <div>❌</div>
+                <div class="stat-number">连接失败</div>
+                <div class="stat-label">请确保后端运行在3001端口</div>
+            </div>
+        `;
+    }
+}
+
+async function loadVisitors() {
+    try {
+        const response = await fetch(`${API_URL}/api/visitors`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // 访客列表
+            const tbody = document.getElementById('visitorsTableBody');
+            if (!data.visitors || data.visitors.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">暂无数据</td></tr>';
+            } else {
+                tbody.innerHTML = '';
+                data.visitors.forEach(v => {
+                    const row = tbody.insertRow();
+                    row.insertCell(0).textContent = (v.device_id || '未知').substring(0, 20) + '...';
+                    row.insertCell(1).textContent = v.first_visit ? new Date(v.first_visit).toLocaleString() : '未知';
+                    row.insertCell(2).textContent = v.last_visit ? new Date(v.last_visit).toLocaleString() : '未知';
+                    row.insertCell(3).textContent = v.visit_count || 0;
+                    row.insertCell(4).textContent = v.ip || '未知';
+                });
+            }
+            
+            // 最近访问记录
+            const recentTbody = document.getElementById('recentTableBody');
+            if (!data.recentVisits || data.recentVisits.length === 0) {
+                recentTbody.innerHTML = '<tr><td colspan="4">暂无数据</td></tr>';
+            } else {
+                recentTbody.innerHTML = '';
+                data.recentVisits.forEach(v => {
+                    const row = recentTbody.insertRow();
+                    row.insertCell(0).textContent = new Date(v.visit_time).toLocaleString();
+                    row.insertCell(1).textContent = (v.device_id || '未知').substring(0, 15) + '...';
+                    row.insertCell(2).textContent = v.ip || '未知';
+                    row.insertCell(3).textContent = v.page_url || '首页';
+                });
+            }
+        }
+    } catch (error) {
+        console.error('加载访客列表失败:', error);
+    }
+}
+
+// 自动刷新（每20秒）
+setInterval(() => {
+    loadStats();
+}, 20000);
+
+// 页面加载时获取数据
+loadAllData();
+</script>
+</body>
+</html>
